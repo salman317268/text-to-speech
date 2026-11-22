@@ -1,0 +1,244 @@
+from flask import Flask, render_template, request, send_file, jsonify
+from gtts import gTTS
+from io import BytesIO
+
+app = Flask(_name_)
+
+@app.route("/")
+def home():
+    return render_template("index.html")
+
+
+@app.route("/speak", methods=["POST"])
+def speak():
+    text = request.form.get("text", "").strip()
+    language = request.form.get("language", "en")
+
+    if not text:
+        return jsonify({"error": "Please enter some text"}), 400
+
+    if language not in ["bn", "en"]:
+        return jsonify({"error": "Invalid language"}), 400
+
+    try:
+        audio = BytesIO()
+
+        voice = gTTS(text=text, lang=language)
+        voice.write_to_fp(audio)
+
+        audio.seek(0)
+
+        return send_file(
+            audio,
+            mimetype="audio/mpeg",
+            as_attachment=False,
+            download_name="voice.mp3"
+        )
+
+    except Exception:
+        return jsonify({"error": "Voice generation failed"}), 500
+
+
+if _name_ == "_main_":
+    app.run(debug=False)
+You sent
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Text To Speech Converter</title>
+
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background: #eef2ff;
+            margin: 0;
+            padding: 30px;
+        }
+
+        .container {
+            max-width: 650px;
+            margin: 50px auto;
+            background: white;
+            padding: 30px;
+            border-radius: 15px;
+            box-shadow: 0 5px 25px #0002;
+        }
+
+        h1 {
+            text-align: center;
+            color: #3344aa;
+        }
+
+        p {
+            text-align: center;
+            color: #666;
+        }
+
+        textarea {
+            width: 100%;
+            height: 180px;
+            padding: 12px;
+            box-sizing: border-box;
+            border: 1px solid #ccc;
+            border-radius: 10px;
+            font-size: 17px;
+            resize: vertical;
+        }
+
+        select, button {
+            width: 100%;
+            padding: 13px;
+            margin-top: 15px;
+            border-radius: 8px;
+            font-size: 16px;
+        }
+
+        select {
+            border: 1px solid #ccc;
+        }
+
+        button {
+            background: #4055d6;
+            color: white;
+            border: none;
+            cursor: pointer;
+        }
+
+        button:hover {
+            background: #293bb0;
+        }
+
+        button:disabled {
+            background: gray;
+            cursor: not-allowed;
+        }
+
+        audio {
+            width: 100%;
+            margin-top: 20px;
+        }
+
+        #download {
+            display: none;
+            text-align: center;
+            margin-top: 15px;
+            color: #3344aa;
+        }
+
+        #message {
+            margin-top: 15px;
+            text-align: center;
+        }
+    </style>
+</head>
+
+<body>
+
+<div class="container">
+
+    <h1>Text To Speech</h1>
+
+    <p>Convert your text into voice</p>
+
+    <textarea id="text"
+        placeholder="Write something here..."></textarea>
+
+    <select id="language">
+        <option value="bn">Bangla</option>
+        <option value="en">English</option>
+    </select>
+
+    <button id="convert" onclick="convertVoice()">
+        Convert To Voice
+    </button>
+
+    <p id="message"></p>
+
+    <audio id="player" controls></audio>
+
+    <a id="download" download="voice.mp3">
+        Download MP3
+    </a>
+
+</div>
+
+<script>
+
+let audioURL = null;
+
+async function convertVoice() {
+
+    const text = document.getElementById("text").value.trim();
+    const language = document.getElementById("language").value;
+
+    const button = document.getElementById("convert");
+    const message = document.getElementById("message");
+    const player = document.getElementById("player");
+    const download = document.getElementById("download");
+
+    if (!text) {
+        message.innerText = "Please write something!";
+        return;
+    }
+
+    button.disabled = true;
+    button.innerText = "Creating Voice...";
+    message.innerText = "Please wait...";
+
+    download.style.display = "none";
+    player.removeAttribute("src");
+    player.load();
+
+    if (audioURL) {
+        URL.revokeObjectURL(audioURL);
+        audioURL = null;
+    }
+
+    try {
+
+        const formData = new FormData();
+
+        formData.append("text", text);
+        formData.append("language", language);
+
+        const response = await fetch("/speak", {
+            method: "POST",
+            body: formData
+        });
+
+        if (!response.ok) {
+            throw new Error("Voice generation failed!");
+        }
+
+        const blob = await response.blob();
+
+        audioURL = URL.createObjectURL(blob);
+
+        player.src = audioURL;
+        download.href = audioURL;
+
+        download.style.display = "block";
+
+        message.innerText = "Voice created successfully!";
+
+        await player.play();
+
+    } catch (error) {
+
+        message.innerText = "Error: " + error.message;
+
+    } finally {
+
+        button.disabled = false;
+        button.innerText = "Convert To Voice";
+
+    }
+
+}
+
+</script>
+
+</body>
+</html>
